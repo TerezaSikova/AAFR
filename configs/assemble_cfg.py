@@ -2,16 +2,16 @@
 pipeline_parameters = {
     'processing_module' : "standard",
     'registration_module' : "teaser",
-    'evaluation_metrics' : ["rms"]
+    'evaluation_metrics' : ["rms", "chamfer"]
 }
 
 # data_list
 num_of_points = 30000 # resampling to n points
 # see paper for details (graph creation)
 to = 100
-tb = 0.1
-dil = 0.01
-thre = 0.93
+tb = 20
+dil = 0.001
+thre = 0.95
 N = 15
 variables_as_list =  [num_of_points, num_of_points, N, to, to, to, tb, tb, tb, dil, thre]
 

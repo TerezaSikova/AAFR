@@ -2,16 +2,11 @@ import open3d as o3d
 import numpy as np
 import scipy.spatial
 from tqdm import tqdm
-import math
 import networkx as nx
-import heapq
 from disjoint import DisjointSetExtra
-import random
-import matplotlib
 from collections import Counter
 from itertools import count
 from copy import copy
-import feature_piplines
 import importlib
 from p_tqdm import p_umap,p_uimap
 import os
@@ -25,8 +20,7 @@ import datetime
 from copy import copy,deepcopy
 import pickle
 np.random.seed(seed=0)
-import json 
-import pdb 
+import json
 
 class experiment(object):
     """docstring for ."""
@@ -114,10 +108,10 @@ class experiment(object):
 
     def compile_string(self, string):
         string = str(string)
-        fixed_number = re.compile("\d+(?:\.\d+)?")
-        range_pattern = re.compile("range\(\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\)")
-        random_pattern = re.compile("random\(\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\)")
-        array_pattern = re.compile("array\(\[\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\]\)")
+        fixed_number = re.compile(r"\d+(?:\.\d+)?")
+        range_pattern = re.compile(r"range\(\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\)")
+        random_pattern = re.compile(r"random\(\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\)")
+        array_pattern = re.compile(r"array\(\[\d+(?:\.\d+)?,\d+(?:\.\d+)?,\d+(?:\.\d+)?\]\)")
         my_values = []
         if range_pattern.match(string):
             start,end,step = re.findall(r"\d+(?:\.\d+)?", string, re.I)
@@ -364,11 +358,11 @@ class fragment_reassembler(object):
     to debug and understand the codebase better and for further extension/modification
     of the pipeline components 
     """
-    def __init__(self, broken_objects, variables_as_list, parameters, name='broken_objects', show_results=False, save_results=False, dir_name=None):
+    def __init__(self, speed, mode, broken_objects, variables_as_list, parameters, name='broken_objects', show_results=False, save_results=False, dir_name=None):
         
         if not os.path.exists("pipline_modules/"+parameters['processing_module']+".py") :
             print("Error !  cannot find "+parameters['processing_module']+" module in pipline_modules")
-
+        self.broken_objects = broken_objects
         self.pair_name = parameters
         self.obj1_url = broken_objects['path_obj1']
         self.obj2_url = broken_objects['path_obj2']
@@ -383,6 +377,15 @@ class fragment_reassembler(object):
         self.save_results = save_results
         self.obj1_name = self.obj1_url.split('/')[-1][:-4]
         self.obj2_name = self.obj2_url.split('/')[-1][:-4]
+        self.speed = speed
+        self.mode = mode
+        self.gt_pcd = None
+        self.gt = None
+        if 'solution' in broken_objects:
+            self.gt = np.zeros((4, 4))
+            for i in range(4):
+                for j in range(4):
+                    self.gt[i, j] = broken_objects['solution']["GT"][i][j]
 
     def load_objects(self):
         small = self.pipeline_variables[0]
@@ -393,7 +396,29 @@ class fragment_reassembler(object):
         self.obj1 = self.processing_pipeline.load_obj(self.obj1_url, small, large, N)
         print('Loading object 2:', self.obj2_url)
         self.obj2 = self.processing_pipeline.load_obj(self.obj2_url, small, large, N)
-        print('done') 
+        # print('done') 
+
+    def load_gt(self):
+        small = self.pipeline_variables[0]
+        large = self.pipeline_variables[1]
+        N = self.pipeline_variables[2]
+        print('Loading Ground Truth:', self.obj2_url)
+        self.gt_pcd = self.processing_pipeline.load_obj(self.obj2_url, small, large, N)
+        self.gt_pcd = self.transform_back(self.gt_pcd)
+
+    def transform_back(self, obj):
+        R = np.array(self.broken_objects['solution']['r'])
+        T = np.array(self.broken_objects['solution']['t'])
+
+        R_inv = R.T
+        T_inv = -R_inv @ T
+
+        T_matrix_inv = np.eye(4)
+        T_matrix_inv[:3, :3] = R_inv
+        T_matrix_inv[:3, 3] = T_inv
+
+        obj.pcd.transform(T_matrix_inv)
+        return obj
 
     def set_output_dir(self, output_dir):
         self.output_dir = output_dir
@@ -405,31 +430,31 @@ class fragment_reassembler(object):
         self.obj1_borders_indices, self.obj1_isolated_islands_pruned_graph = self.processing_pipeline.detect_breaking_curves(self.obj1, self.pipeline_variables)
         print('Detecting breaking curves for object 2..')
         self.obj2_borders_indices, self.obj2_isolated_islands_pruned_graph = self.processing_pipeline.detect_breaking_curves(self.obj2, self.pipeline_variables)
-        print('done')
+        # print('done')
 
     def save_breaking_curves(self):
-        print('Saving breaking curves for object 1..')
+        # print('Saving breaking curves for object 1..')
         self.processing_pipeline.write_breaking_curves(self.obj1, self.obj1_borders_indices, self.output_dir, self.obj1_name)
-        print('Saving breaking curves for object 2..')
+        # print('Saving breaking curves for object 2..')
         self.processing_pipeline.write_breaking_curves(self.obj2, self.obj2_borders_indices, self.output_dir, self.obj2_name)
-        print('done')
+        # print('done')
 
     def segment_regions(self):
         # print("The segmentation process was very slow, but now is super fast!")
         # print("Thanks to @LucHayward for the speedup (changing list to a set got us 100x speed up)")
         # print("The code is in the processing module in the get_sides method: feel free to help improving it (:")
         print('Segmenting object 1.. ')
-        self.obj1_seg_parts_array, seg_regions_indices, self.obj1_colored_regions = self.processing_pipeline.segment_regions(self.obj1, self.obj1_borders_indices, self.obj1_isolated_islands_pruned_graph)
+        self.obj1_seg_parts_array, seg_regions_indices, self.obj1_colored_regions = self.processing_pipeline.segment_regions(self.obj1, self.obj1_borders_indices, self.obj1_isolated_islands_pruned_graph, self.speed, self.mode)
         print('Segmenting object 2.. ')
-        self.obj2_seg_parts_array, seg_regions_indices, self.obj2_colored_regions = self.processing_pipeline.segment_regions(self.obj2, self.obj2_borders_indices, self.obj2_isolated_islands_pruned_graph)
-        print('done')
+        self.obj2_seg_parts_array, seg_regions_indices, self.obj2_colored_regions = self.processing_pipeline.segment_regions(self.obj2, self.obj2_borders_indices, self.obj2_isolated_islands_pruned_graph, self.speed, self.mode)
+        # print('done')
 
     def save_segmented_regions(self):
-        print('Saving segmented parts for object 1..')
+        # print('Saving segmented parts for object 1..')
         self.processing_pipeline.write_segmented_regions(self.obj1_seg_parts_array, self.obj1_colored_regions, self.output_dir, self.obj1_name)
-        print('Saving segmented parts for object 2..')
+        # print('Saving segmented parts for object 2..')
         self.processing_pipeline.write_segmented_regions(self.obj2_seg_parts_array, self.obj2_colored_regions, self.output_dir, self.obj2_name)
-        print('done')
+        # print('done')
 
     def save_fragments(self, pcl_name=''):
         """Save the fragments to ply files"""
@@ -452,8 +477,6 @@ class fragment_reassembler(object):
         # self.gt_t = gt[:3, 3]
 
     def register_segmented_regions(self):
-        """Register segmented regions"""
-        print("_________________________Registration_________________________")
         self.candidates_registration = self.registration.run(self.obj1_seg_parts_array, self.obj2_seg_parts_array)
         self.sorted_candidates_registration = self.candidates_registration.sort_values('chamfer_distance')
         self.best_registration = self.sorted_candidates_registration.head(1)
@@ -465,6 +488,12 @@ class fragment_reassembler(object):
         self.best_registration.to_csv(os.path.join(self.folder_registration_results, 'best_registration.csv'))
         
     def save_registered_pcls(self):
+        # save ground_truth
+        # self.load_gt()
+        # obj3_to_draw = copy(self.gt_pcd.pcd)
+        # obj3_to_draw.paint_uniform_color([0, 1, 0])
+        #o3d.io.write_point_cloud(os.path.join(self.folder_registration_results, 'obj3.ply'), obj3_to_draw)
+
         obj1_to_draw = copy(self.obj1.pcd)
         obj2_to_draw = copy(self.obj2.pcd)
         obj1_to_draw.paint_uniform_color([1, 1, 0])
@@ -473,20 +502,30 @@ class fragment_reassembler(object):
         o3d.io.write_point_cloud(os.path.join(self.folder_registration_results, 'obj1.ply'), obj1_to_draw)
         o3d.io.write_point_cloud(os.path.join(self.folder_registration_results, 'obj2.ply'), obj2_to_draw)
 
-    def evaluate_error(self):
-        """Evaluate against gt and estimate rmse(R) and rmse(T)"""
-        return 1
+    def evaluate(self):
+        # print("result: ", self.best_registration['transf_teaser'].item())
+        # print("GT: ", self.gt)
+        estimated_transformation = self.best_registration['transf_teaser'].item()
+        obj_to_evaluate = copy(self.obj2.pcd)
+        obj_to_evaluate = obj_to_evaluate.transform(estimated_transformation)
+
+        results = dict()
+        for eval_module in self.evaluation_list:
+            tmp_res = eval_module.run(obj_to_evaluate, self.gt_pcd.pcd, self.gt, estimated_transformation)
+            for key,val in tmp_res.items():
+                results[key] = val
+        return results
 
     def evaluate_against_gt(self):
-        if not self.gt:
-            print("Set the ground truth first!")
+        if self.gt is None or self.gt_pcd is None:
+            print("Ground truth not provided, cannot evaluate.")
             self.error = -1
         else:
-            self.error = self.evaluate_error()
+            self.error = self.evaluate()
 
     def save_evaluation_results(self):
         folder_eval_res = os.path.join(self.output_dir, f"evaluation_{self.pair_name}")
-        os.makedirs(folder_results, exist_ok=True)
+        os.makedirs(folder_eval_res, exist_ok=True)
         with open(os.path.join(folder_eval_res, 'evaluation.json'), 'w') as ejf:
             json.dump(self.error, ejf, indent=3)
 
@@ -518,14 +557,6 @@ class fragment_reassembler(object):
     def evaluate_results(self):
         print("_________________________Evaluation_________________________")
         self.results = [{**{"o1":o1, "o2":o2},**self.evaluate(self.RM_ground, result_transformation)} for o1, o2, result_transformation in self.result_transformation_arr]
-
-    def evaluate(self, gt_transf, estimated_transformation):
-        results = dict()
-        for eval_module in self.evaluation_list:
-            tmp_res = eval_module.run(gt_transf, estimated_transformation)
-            for key,val in tmp_res.items():
-                results[key] = val
-        return results
 
     def get_winner(self, topk=5):
         self.winner, self.sorted_results = sort_results(self)

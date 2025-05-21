@@ -17,7 +17,7 @@ def read_obj(path, voxel_size):
         mesh = o3d.io.read_triangle_mesh(path)
         downpcd1 = mesh.sample_points_uniformly(number_of_points=voxel_size)
     else:
-        print("we only support .ply or .obj at the moment!\nFound", cfg['path_obj1'])
+        print("we only support .ply or .obj at the moment")
         return None, -1
 
     return downpcd1, 0

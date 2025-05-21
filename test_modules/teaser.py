@@ -4,6 +4,19 @@ from utils.helpers import *
 import pandas as pd 
 from evaluation_pairwise.utils import chamfer_distance
 from copy import deepcopy,copy
+import os
+import contextlib
+
+@contextlib.contextmanager
+def suppress_stdout():
+    with open(os.devnull, "w") as devnull:
+        old_stdout = os.dup(1)
+        os.dup2(devnull.fileno(), 1)
+        try:
+            yield
+        finally:
+            os.dup2(old_stdout, 1)
+            os.close(old_stdout)
 
 def register_fragments(pcd1, pcd2, voxel_size=2, resample_factor=5, verbose=False):
 
@@ -38,9 +51,10 @@ def register_fragments(pcd1, pcd2, voxel_size=2, resample_factor=5, verbose=Fals
 
     # robust global registration using TEASER++
     NOISE_BOUND = voxel_size
-    teaser_solver = get_teaser_solver(NOISE_BOUND)
-    teaser_solver.solve(A_corr,B_corr)
-    solution = teaser_solver.getSolution()
+    with suppress_stdout():
+        teaser_solver = get_teaser_solver(NOISE_BOUND)
+        teaser_solver.solve(A_corr,B_corr)
+        solution = teaser_solver.getSolution()
     R_teaser = solution.rotation
     t_teaser = solution.translation
     T_teaser = Rt2T(R_teaser,t_teaser)
@@ -90,7 +104,7 @@ def run(obj1_seg_parts_array, obj2_seg_parts_array, MIN_PCD_SIZE=1000):
             cur_frag2_size = len(pcd_part2.points)
             frag1_size.append(cur_frag1_size)
             frag2_size.append(cur_frag2_size)
-            print(f'Now registering part {o1} of obj1 ({cur_frag1_size} points) with part {o2} of obj2 ({cur_frag2_size} points)')
+            print(f'Registering part {o1} of obj1 ({cur_frag1_size} points) with part {o2} of obj2 ({cur_frag2_size} points)')
             o1s.append(o1)
             o2s.append(o2)
             

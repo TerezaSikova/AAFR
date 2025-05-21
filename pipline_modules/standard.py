@@ -5,9 +5,8 @@ import open3d as o3d
 import numpy as np
 import helper
 from Fragment import FeatureLines
-from tqdm import tqdm
-import pdb 
 import random
+from collections import deque
 
 colors = [
     [0, 204, 0],
@@ -49,59 +48,60 @@ def dilate_border(my_obj,border,size):
 def get_sides(Graph, borders):
     faces = []
     all_visited = set()
-    nodes = list(Graph.nodes)
+    nodes = deque(Graph.nodes)
     borders = set(borders)
     shortest_cycle_length = np.sqrt(len(borders))//5
-    with tqdm(total=len(nodes)) as pbar:
-        while len(nodes):
-            random_point = nodes.pop(0)
-            while random_point in all_visited or random_point in borders:
-                if not len(nodes):
-                    sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
-                    my_faces = []
-                    for size,face in sorted_faces:
-                        if size>shortest_cycle_length:
-                            my_faces.append((size,face))
-                    return my_faces
-                random_point = nodes.pop(0)
+    while len(nodes):
+        random_point = nodes.popleft()
+        while random_point in all_visited or random_point in borders:
+            if not len(nodes):
+                sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
+                my_faces = []
+                for size,face in sorted_faces:
+                    if size>shortest_cycle_length:
+                        my_faces.append((size,face))
+                return my_faces
+            random_point = nodes.popleft()
 
-            queue = [random_point]
-            visited = set()
-            while len(queue):
-                point = queue.pop(0)
-                if point not in visited and point not in borders:
-                    visited.add(point)
-                    all_visited.add(point)
-                    neighbors = Graph.neighbors(point)
-                    pbar.update(len(list(copy(neighbors))))
-                    for neighbor in neighbors:
-                        all_visited.add(neighbor)
-                        if neighbor not in borders:
-                            queue.append(neighbor)
-            #print(len(visited))
-            faces.append((len(visited),visited))
-        sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
-        my_faces = []
-        for size,face  in sorted_faces:
-            if size>shortest_cycle_length:
-                my_faces.append((size,face) )
-        return my_faces
+        queue = deque([random_point])
+        visited = set()
+        while queue:
+            point = queue.popleft()
+            if point not in visited and point not in borders:
+                visited.add(point)
+                all_visited.add(point)
+                neighbors = Graph.neighbors(point)
+                for neighbor in neighbors:
+                    all_visited.add(neighbor)
+                    if neighbor not in borders:
+                        queue.append(neighbor)
+        #print(len(visited))
+        faces.append((len(visited),visited))
+    sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
+    my_faces = []
+    for size,face  in sorted_faces:
+        if size>shortest_cycle_length:
+            my_faces.append((size,face) )
+    return my_faces
 
-def knn_expand(Obj,my_borders,node_face,face_nodes,size):
+def knn_expand(Obj,my_borders,node_face,face_nodes,speed,size):
+    if not speed:
+        points_u = []
+        tmp_tree = o3d.geometry.KDTreeFlann(Obj.pcd)
+        for i in range(len(Obj.pcd.points)):
+                point = Obj.pcd.points[i]
+                [k, idx, _] = tmp_tree.search_knn_vector_3d(point, 100)
+                q_points = np.asarray(Obj.pcd.points).take(idx,axis=0)
+                points_u.append(np.mean(np.abs(q_points[1:] - point)))
+        radius = np.mean(points_u)
+        #print("KNN Radius : ",radius)
 
-    points_u = []
-    tmp_tree = o3d.geometry.KDTreeFlann(Obj.pcd)
-    for i in range(len(Obj.pcd.points)):
-            point = Obj.pcd.points[i]
-            [k, idx, _] = tmp_tree.search_knn_vector_3d(point, 100)
-            q_points = np.asarray(Obj.pcd.points).take(idx,axis=0)
-            points_u.append(np.mean(np.abs(q_points[1:] - point)))
-    radius = np.mean(points_u)
-    #print("KNN Radius : ",radius)
     borders = deepcopy(my_borders)
     face_nodes_new = deepcopy(face_nodes)
     tree = o3d.geometry.KDTreeFlann(Obj.pcd)
+
     no_change = 0
+    padding = 1000 if speed else 10000000
     while borders:
         len_before = len(borders)
 
@@ -131,9 +131,9 @@ def knn_expand(Obj,my_borders,node_face,face_nodes,size):
         else:
             no_change = 0
 
-        if no_change >= len_before+10000000:
+        if no_change >= len_before + padding:
             break
-    #print(len(borders))
+    # print("Remaining borders: ", len(borders))
     return face_nodes_new
 
 def find_dilattion_size(my_obj,border):
@@ -331,11 +331,10 @@ def detect_breaking_curves(obj, pipeline_variables):
     isolated_islands_pruned_graph_border, F_lines, isolated_islands = helper.create_graph(tmp_Obj, \
     shortest_cycle_length, smallest_isolated_island_length,mask=valid,radius=None)
 
-    print("Pruning..")
+    print("Pruning and Dilating..")
     pruned_graph, removed_nodes, valid_nodes = helper.prune_branches(F_lines,isolated_islands_pruned_graph_border,\
     shortest_allowed_branch_length)
 
-    print("Dilating..")
     border_nodes = [node for branch in valid_nodes for node in branch]
     dilated_border = dilate_border(obj,border_nodes,dilation_size)
 
@@ -355,11 +354,11 @@ def write_breaking_curves(obj, borders_indices, output_dir, obj_name):
     o3d.io.write_point_cloud(os.path.join(output_dir, f'borders_{obj_name}.ply'), border_pcd)
     o3d.io.write_point_cloud(os.path.join(output_dir, f'inner_{obj_name}.ply'), inner_ppd)
 
-def segment_regions(obj, borders_indices, isolated_islands_pruned_graph, mode="ALI"):   
+def segment_regions(obj, borders_indices, isolated_islands_pruned_graph, speed, mode="ALI"):   
+    node_face = {}
+    face_nodes = []
+    seg_regions_indices = get_sides(isolated_islands_pruned_graph, borders_indices)
     if mode == "ALI":
-        seg_regions_indices = get_sides(isolated_islands_pruned_graph, borders_indices)
-        node_face = {}
-        face_nodes = []
         for idx,(_,face) in enumerate(seg_regions_indices):
             for node in face:
                 node_face[node] = idx
@@ -369,32 +368,44 @@ def segment_regions(obj, borders_indices, isolated_islands_pruned_graph, mode="A
         left_overs = list(set(range(len(obj.pcd.points)))-set(all_dilated))
         border_left_overs = left_overs+borders_indices
         print('Assigning border nodes..')
-        expanded_faces = knn_expand(obj,border_left_overs,node_face,face_nodes,size=5)
-        #print("expanded")
-        seg_parts_array = []
-        for f, expanded_face in enumerate(expanded_faces):
-            mask = np.isin(np.arange(0, len(obj.pcd.points), 1).tolist(),[node for node in expanded_face])
-            Obj_tmp = copy(obj)
-            Obj_tmp.pcd = copy(obj.pcd)
-            Obj_tmp.pcd.points = o3d.utility.Vector3dVector(np.asarray(obj.pcd.points)[mask])
-            Obj_tmp.pcd.paint_uniform_color(np.asarray(colors[f % len(colors)]).astype("float") / 255.0)
-            seg_parts_array.append(Obj_tmp)
+        expanded_faces = knn_expand(obj,border_left_overs,node_face,face_nodes,speed, size=5)
+    elif mode == "SB":
+        # adding breaking curves to the segmented regions
+        seg_regions_indices.append((len(borders_indices),set(borders_indices)))
+        for idx, (_, face) in enumerate(seg_regions_indices):
+            for node in face:
+                node_face[node] = idx
+            face_nodes.append(face)
+        all_dilated = [node for _, face in seg_regions_indices for node in face]
+        left_overs = list(set(range(len(obj.pcd.points))) - set(all_dilated))
+        print('Assigning leftover nodes..')
+        expanded_faces = knn_expand(obj, left_overs, node_face, face_nodes, speed, size=5)
 
-        print("Creating colored version..")
-        colored_regions = copy(obj.pcd)
-        regions_col = np.zeros((len(obj.pcd.points), 3))
-        for k, face in enumerate(expanded_faces):
-            for point in face:
-                regions_col[point] = colors[k % len(colors)]
-        colored_regions.colors = o3d.utility.Vector3dVector(np.asarray(regions_col).astype("float") / 255.0)
-        #o3d.visualization.draw_geometries([colored_regions])
-        #pdb.set_trace()
-        return seg_parts_array, seg_regions_indices, colored_regions
     else:
         #  running segmentation with hdbscan
         #seg_parts_array, seg_regions_indices, colored_regions
         
         print("todo")
+
+    seg_parts_array = []
+    for f, expanded_face in enumerate(expanded_faces):
+        mask = np.isin(np.arange(0, len(obj.pcd.points), 1).tolist(),[node for node in expanded_face])
+        Obj_tmp = copy(obj)
+        Obj_tmp.pcd = copy(obj.pcd)
+        Obj_tmp.pcd.points = o3d.utility.Vector3dVector(np.asarray(obj.pcd.points)[mask])
+        Obj_tmp.pcd.paint_uniform_color(np.asarray(colors[f % len(colors)]).astype("float") / 255.0)
+        seg_parts_array.append(Obj_tmp)
+
+    # print("Creating colored version..")
+    colored_regions = copy(obj.pcd)
+    regions_col = np.zeros((len(obj.pcd.points), 3))
+    for k, face in enumerate(expanded_faces):
+        for point in face:
+            regions_col[point] = colors[k % len(colors)]
+    colored_regions.colors = o3d.utility.Vector3dVector(np.asarray(regions_col).astype("float") / 255.0)
+    #o3d.visualization.draw_geometries([colored_regions])
+
+    return seg_parts_array, seg_regions_indices, colored_regions
 
 
 def write_segmented_regions(seg_parts_array, colored_regions, output_dir, obj_name):

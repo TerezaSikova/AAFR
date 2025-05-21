@@ -64,5 +64,3 @@ If you visualize (here screenshots from Meshlab) the results you should see some
 | ![demo position](static/images/demo_position.png) | ![demo position](static/images/demo_solved.png) |
 
 A demo result is saved in `3dvr_results/demo_results`, but you can do it on your pc to test it!
-
-
