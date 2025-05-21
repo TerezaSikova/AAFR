@@ -9,24 +9,24 @@ For more details, including data preparation or installation steps, please refer
 This page provides demo instructions, and a summary of relevant adjustments made for this fork.
 
 # 2) Installation insights
-This fork was run on Ubuntu 24.10 with Python 3.12.7.
-To ensure smooth installation, I modified the requirements.txt file.
+This code was run on Ubuntu 24.10 with Python 3.12.7.
+To ensure smooth installation, I modified the requirements.txt file (particularly numpy version).
 
 # 3) Demo Run
 
 You can test the reassembly process on several prepared examples:
 - DrinkBottle
 - Statue
-- RePAIR Fresco
+- FrescoRepair
 - FigurineS3
 - FigurineS4
 - Pot
-- DAM Fresco
+- FrescoDAM
 
 Data sources: 
 - DrinkBottle, Statue: [breaking bad dataset](https://breaking-bad-dataset.github.io/)
-- RePAIR Fresco: [repair dataset](https://drive.google.com/drive/folders/1G4ffmH5lxEqITZMNValiModByYUAO6yk)
-- FigurineS3, FigurineS4, Pot, DAM Fresco: provided by the Department of Archaeology and Museology at Masaryk University
+- FrescoRepair: [repair dataset](https://drive.google.com/drive/folders/1G4ffmH5lxEqITZMNValiModByYUAO6yk)
+- FigurineS3, FigurineS4, Pot, FrescoDAM: provided by the Department of Archaeology and Museology at Masaryk University
 
 To run your chosen demo, use the following script:
 ```bash
