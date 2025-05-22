@@ -15,7 +15,7 @@ To ensure smooth installation, I modified the `requirements.txt` file (particula
 
 You can test the reassembly process on several prepared examples:
 - DrinkBottle (for comparison with the original pipeline)
-- WineGlass (to get correct results, run with the --mode SB flag for segmenting breaking curves as well as regular points)
+- WineGlass (to get correct results, run with the `--mode SB` flag for segmenting breaking curves as well as regular points)
 - FigurineS4 (successful reassembly on a custom dataset)
 - Pot (example of a failed breaking curves detection and therefore unsuccessful reassembly on a custom dataset)
 
@@ -34,6 +34,6 @@ And for the WineGlass:
 python assemble_fragments.py --cfg assemble_cfg_demo --demo WineGlass --f FAST --mode SB
 ```
 
-You can also run the script without the --f FAST flag, which will use the default (slower) reassembly code.
+You can also run the script without the `--f FAST` flag, which will use the default (slower) reassembly code.
 
 For more details on the output format and the results in the `results` folder, refer to the original authors' demo in the [demo file](demo.md).
