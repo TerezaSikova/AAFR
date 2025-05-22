@@ -18,36 +18,12 @@ demo_options = {
         'thre': 0.93,
         'N': 15
     },
-    'FigurineS3': {
-        'num_of_points': 30000,
-        'to': 100,
-        'tb': 1,
-        'dil': 0.0009,
-        'thre': 0.94,
-        'N': 15
-    },
     'FigurineS4': {
         'num_of_points': 30000,
         'to': 100,
         'tb': 50,
         'dil': 0.0035,
         'thre': 0.93,
-        'N': 15
-    },
-    'FrescoDAM': {
-        'num_of_points': 20000,
-        'to': 100,
-        'tb': 20,
-        'dil': 0.001,
-        'thre': 0.93,
-        'N': 15
-    },
-    'FrescoRepair': {
-        'num_of_points': 20000,
-        'to': 200,
-        'tb': 100,
-        'dil': 2.5,
-        'thre': 0.95,
         'N': 15
     },
     'Pot': {
@@ -58,11 +34,11 @@ demo_options = {
         'thre': 0.93,
         'N': 15
     },
-    'Statue': {
+    'WineGlass': {
         'num_of_points': 30000,
         'to': 100,
-        'tb': 10,
-        'dil': 0.005,
+        'tb': 5,
+        'dil': 0.001,
         'thre': 0.93,
         'N': 15
     }

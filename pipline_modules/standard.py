@@ -84,6 +84,46 @@ def get_sides(Graph, borders):
             my_faces.append((size,face) )
     return my_faces
 
+def get_sides_from_breaking_curves(Graph, borders):
+    faces = []
+    all_visited = set()
+    nodes = deque(Graph.nodes)
+    borders = set(borders)
+    shortest_cycle_length = np.sqrt(len(borders))//5
+    while len(nodes):
+        random_point = nodes.popleft()
+        while random_point in all_visited or random_point not in borders:
+            if not len(nodes):
+                sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
+                my_faces = []
+                for size,face in sorted_faces:
+                    if size>shortest_cycle_length:
+                        my_faces.append((size,face))
+                return my_faces
+            random_point = nodes.popleft()
+
+        queue = deque([random_point])
+        visited = set()
+        while queue:
+            point = queue.popleft()
+            if point not in visited and point in borders:
+                visited.add(point)
+                all_visited.add(point)
+                neighbors = Graph.neighbors(point)
+                for neighbor in neighbors:
+                    all_visited.add(neighbor)
+                    if neighbor in borders:
+                        queue.append(neighbor)
+        #print(len(visited))
+        faces.append((len(visited),visited))
+
+    sorted_faces = sorted(faces,key = lambda key:key[0], reverse = True)
+    my_faces = []
+    for size,face  in sorted_faces:
+        if size>shortest_cycle_length:
+            my_faces.append((size,face) )
+    return my_faces
+
 def knn_expand(Obj,my_borders,node_face,face_nodes,speed,size):
     if not speed:
         points_u = []
@@ -371,7 +411,9 @@ def segment_regions(obj, borders_indices, isolated_islands_pruned_graph, speed, 
         expanded_faces = knn_expand(obj,border_left_overs,node_face,face_nodes,speed, size=5)
     elif mode == "SB":
         # adding breaking curves to the segmented regions
-        seg_regions_indices.append((len(borders_indices),set(borders_indices)))
+        seg_regions_indices = get_sides(isolated_islands_pruned_graph, borders_indices)
+        seg_regions_indices2 = get_sides_from_breaking_curves(isolated_islands_pruned_graph, borders_indices)
+        seg_regions_indices.extend(seg_regions_indices2)
         for idx, (_, face) in enumerate(seg_regions_indices):
             for node in face:
                 node_face[node] = idx

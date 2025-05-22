@@ -9,9 +9,9 @@ pipeline_parameters = {
 num_of_points = 30000 # resampling to n points
 # see paper for details (graph creation)
 to = 100
-tb = 20
-dil = 0.001
-thre = 0.95
+tb = 0.1
+dil = 0.01
+thre = 0.93
 N = 15
 variables_as_list =  [num_of_points, num_of_points, N, to, to, to, tb, tb, tb, dil, thre]
 

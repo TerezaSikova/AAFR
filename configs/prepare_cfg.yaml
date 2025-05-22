@@ -10,12 +10,11 @@ output_folder : 'data'
 
 data_list : [
   [
-    "/home/hci/Desktop/obrazky_prilohy/Pot/POHAN_P45395_A.ply", 
-    "/home/hci/Desktop/obrazky_prilohy/Pot/POHAN_P45395_B.ply"
+    "/path_to_breaking_bad_dataset/DrinkBottle/fractured_62/piece_0.obj", 
+    "/path_to_breaking_bad_dataset/DrinkBottle/fractured_62/piece_1.obj"
   ],
   # [
   #   "/path_to_breaking_bad_dataset/DrinkBottle/fractured_63/piece_0.obj",
   #   "/path_to_breaking_bad_dataset/DrinkBottle/fractured_63/piece_1.obj",
   # ]
 ]
-
